@@ -1,0 +1,16 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: rd-{{ pvc.metadata.name }}
+  namespace: {{ pvc.metadata.namespace }}
+  labels:
+    {{ label_key }}: "{{ label_val }}"
+spec:
+  trigger:
+    manual: true
+  rsyncTLS:
+    copyMethod: {{ copy_method }}
+    destinationPVC: {{ pvc.metadata.name }}-dst
+    storageClassName: {{ pvc.spec.storageClassName | default(dest_storage_class) }}
+    {% if copy_method == 'Snapshot' %}volumeSnapshotClassName: {{ dest_snapshot_class }}{% endif %}
+    serviceType: ClusterIP

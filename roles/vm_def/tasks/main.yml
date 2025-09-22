@@ -1,0 +1,43 @@
+- name: Export VM definitions from source and store to destination as ConfigMaps
+  vars:
+    ctx_src: "{{ k8s_src_context_var }}"
+    ctx_dst: "{{ k8s_dest_context_var }}"
+  block:
+    - name: Fetch source VM objects
+      kubernetes.core.k8s_info:
+        context: "{{ ctx_src }}"
+        api_version: kubevirt.io/v1
+        kind: VirtualMachine
+        namespace: "{{ item.namespace }}"
+        name: "{{ item.name }}"
+      loop: "{{ dr_vms }}"
+      loop_control: { label: "{{ item.namespace }}/{{ item.name }}" }
+      register: vm_src_info
+
+    - name: Build restore YAML (preserve name, mac, networks; rewire volumes)
+      vars:
+        src_vm: "{{ item.resources[0] }}"
+        ns: "{{ src_vm.metadata.namespace }}"
+        base_name: "{{ src_vm.metadata.name }}"
+      set_fact:
+        vm_restore_yaml: "{{ lookup('template', 'vm-restore.yml.j2') }}"
+      loop: "{{ vm_src_info.results }}"
+      loop_control:
+        label: "{{ (item.resources|default([{'metadata': {'name': 'unknown'}}]))[0].metadata.name | default('unknown') }}"
+      register: rendered
+
+    - name: Create/Update ConfigMap on destination with VM definition
+      kubernetes.core.k8s:
+        context: "{{ ctx_dst }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: "vmdef-{{ (item.item.resources[0].metadata.name) }}"
+            namespace: "{{ item.item.resources[0].metadata.namespace }}"
+            labels:
+              "{{ label_key }}": "{{ label_val }}"
+          data:
+            vm.yaml: "{{ item.ansible_facts.vm_restore_yaml | to_nice_yaml }}"
+      loop: "{{ rendered.results }}"

@@ -1,0 +1,43 @@
+- name: Async DR failover to destination cluster (pause RD, restore VMs)
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    kubernetes.core.k8s: { validate_certs: "{{ k8s_auth_verify_ssl }}" }
+    kubernetes.core.k8s_info: { validate_certs: "{{ k8s_auth_verify_ssl }}" }
+
+  vars:
+    confirm_failover: true
+
+  tasks:
+    - name: Abort if not confirmed
+      assert:
+        that: confirm_failover | bool
+        fail_msg: "Set confirm_failover=true to proceed."
+
+    - name: Discover DR PVCs and RD CRs
+      include_role:
+        name: discover
+      vars:
+        k8s_context: "{{ k8s_dest_context }}"
+        discovery_mode: "dest"
+      register: destview
+
+    - name: Pause all ReplicationDestination CRs before attach
+      kubernetes.core.k8s:
+        context: "{{ k8s_dest_context }}"
+        state: present
+        definition:
+          apiVersion: volsync.backube/v1alpha1
+          kind: ReplicationDestination
+          metadata:
+            name: "{{ item.rd_name }}"
+            namespace: "{{ item.namespace }}"
+          spec: "{{ item.spec | combine({'paused': True}) }}"
+      loop: "{{ destview.rds | default([]) }}"
+
+    - name: Restore VMs on destination using stored VM definitions
+      include_role:
+        name: restore
+      vars:
+        k8s_context: "{{ k8s_dest_context }}"
+        start_on_restore: "{{ start_on_restore }}"

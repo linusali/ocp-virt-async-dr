@@ -1,0 +1,22 @@
+- name: Install operators & (optional) MetalLB
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    kubernetes.core.k8s: { validate_certs: "{{ k8s_auth_verify_ssl }}" }
+    kubernetes.core.k8s_info: { validate_certs: "{{ k8s_auth_verify_ssl }}" }
+  tasks:
+    - name: Install VolSync on source
+      include_role:
+        name: prereqs
+      vars:
+        k8s_context: "{{ k8s_src_context }}"
+        install_volsync: true
+        install_metallb: false
+
+    - name: Install VolSync (and optional MetalLB) on dest
+      include_role:
+        name: prereqs
+      vars:
+        k8s_context: "{{ k8s_dest_context }}"
+        install_volsync: true
+        install_metallb: "{{ enable_metallb }}"

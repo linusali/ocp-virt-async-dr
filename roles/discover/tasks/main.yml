@@ -1,0 +1,68 @@
+- name: Set mode
+  set_fact:
+    discovery_mode: "{{ discovery_mode | default('source') }}"
+
+# SOURCE MODE
+- name: Get VMs (source) filtered by list
+  when: discovery_mode == 'source'
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    namespace: "{{ item.namespace }}"
+    name: "{{ item.name }}"
+  loop: "{{ dr_vms }}"
+  register: vminfo
+
+- name: Get DVs for VMs
+  when: discovery_mode == 'source'
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: cdi.kubevirt.io/v1beta1
+    kind: DataVolume
+    namespace: "{{ item.item.namespace }}"
+  loop: "{{ vminfo.results }}"
+  register: dvinfo
+
+- name: Get PVCs referenced by DVs
+  when: discovery_mode == 'source'
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: v1
+    kind: PersistentVolumeClaim
+    namespace: "{{ item.item.item.namespace }}"
+  loop: "{{ dvinfo.results }}"
+  register: pvcinfo
+
+- name: Build normalized PVC list (source)
+  when: discovery_mode == 'source'
+  set_fact:
+    pvcs: "{{ pvcinfo.results | map(attribute='resources') | list | flatten | list }}"
+
+# DEST MODE
+- name: Get DR PVCs by label on destination
+  when: discovery_mode == 'dest'
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: v1
+    kind: PersistentVolumeClaim
+    label_selectors: ["{{ dr_label_key }}={{ dr_label_value }}"]
+  register: dest_pvcs
+
+- name: Build normalized PVC list (dest)
+  when: discovery_mode == 'dest'
+  set_fact:
+    pvcs: "{{ dest_pvcs.resources | default([]) }}"
+
+- name: Get ReplicationDestination CRs (dest mode)
+  when: discovery_mode == 'dest'
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: volsync.backube/v1alpha1
+    kind: ReplicationDestination
+  register: rds_info
+
+- name: Normalize RD list (dest mode)
+  when: discovery_mode == 'dest'
+  set_fact:
+    rds: "{{ rds_info.resources | default([]) | map('extract', {'rd_name':'metadata.name','namespace':'metadata.namespace','spec':'spec'}) | list }}"

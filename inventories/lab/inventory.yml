@@ -1,0 +1,42 @@
+all:
+  vars:
+    k8s_auth_verify_ssl: true
+
+    # Use contexts or kubeconfig paths (pass via --extra-vars in AWX if needed)
+    k8s_src_context: "ocp-src"
+    k8s_dest_context: "ocp-dest"
+
+    # VolSync schedule
+    volsync_every_minutes: 15
+    volsync_copy_method: "Snapshot"  # or "Direct"
+
+    # Destination storage
+    dest_storage_class: "fast-rwo"
+    dest_snapshot_class: "fast-snap"
+    dest_access_modes: ["ReadWriteOnce"]
+
+    # MetalLB (optional on DR)
+    enable_metallb: false
+    metallb_ip_pool_cidr: "10.20.30.0/24"
+    metallb_pool_name: "dr-pool"
+    metallb_l2_ns: "metallb-system"
+
+    # VM list to protect (namespace is required)
+    dr_vms:
+      - name: "erp-db"
+        namespace: "apps"
+      - name: "erp-web"
+        namespace: "apps"
+
+    # Labels
+    dr_label_key: "dr/managed"
+    dr_label_value: "true"
+
+    # VM restoration behavior
+    keep_same_vm_name: true          # if false, -dr suffix will be used
+    start_on_restore: true           # set false to just create but not start
+
+  children:
+    localhost:
+      hosts:
+        127.0.0.1:

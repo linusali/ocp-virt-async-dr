@@ -1,0 +1,24 @@
+- name: Get all ReplicationSource
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: volsync.backube/v1alpha1
+    kind: ReplicationSource
+  register: rslist
+
+- name: Patch schedule if different
+  when: (item.spec.trigger.schedule | default('')) != rs_schedule
+  kubernetes.core.k8s:
+    context: "{{ k8s_context }}"
+    state: present
+    definition:
+      apiVersion: volsync.backube/v1alpha1
+      kind: ReplicationSource
+      metadata:
+        name: "{{ item.metadata.name }}"
+        namespace: "{{ item.metadata.namespace }}"
+      spec:
+        sourcePVC: "{{ item.spec.sourcePVC }}"
+        trigger:
+          schedule: "{{ rs_schedule }}"
+        rsyncTLS: "{{ item.spec.rsyncTLS }}"
+  loop: "{{ rslist.resources | default([]) }}"

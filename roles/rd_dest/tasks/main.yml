@@ -1,0 +1,30 @@
+- name: Create/patch RD for each PVC on destination
+  kubernetes.core.k8s:
+    context: "{{ k8s_context }}"
+    state: present
+    definition: "{{ lookup('template', 'replicationdestination.yml.j2') }}"
+  loop: "{{ discovered_pvcs }}"
+  loop_control:
+    loop_var: pvc
+
+- name: Ensure destination PVC exists with requested spec
+  kubernetes.core.k8s:
+    context: "{{ k8s_context }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ item.metadata.name }}-dst"
+        namespace: "{{ item.metadata.namespace }}"
+        labels:
+          "{{ label_key }}": "{{ label_val }}"
+      spec:
+        accessModes: "{{ dest_access_modes }}"
+        storageClassName: "{{ item.spec.storageClassName | default(dest_storage_class) }}"
+        resources:
+          requests:
+            storage: "{{ item.spec.resources.requests.storage }}"
+  loop: "{{ discovered_pvcs }}"
+  loop_control:
+    loop_var: item

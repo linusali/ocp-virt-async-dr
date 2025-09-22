@@ -1,0 +1,16 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: rs-{{ pvc.metadata.name }}
+  namespace: {{ pvc.metadata.namespace }}
+  labels:
+    {{ label_key }}: "{{ label_val }}"
+spec:
+  sourcePVC: {{ pvc.metadata.name }}
+  trigger:
+    schedule: "{{ rs_schedule }}"
+  rsyncTLS:
+    copyMethod: {{ copy_method }}
+    serviceType: ClusterIP
+    keySecretRef:
+      name: rsync-key-secret

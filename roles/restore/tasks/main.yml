@@ -1,0 +1,138 @@
+- name: Restore VMs on destination from stored ConfigMaps (with NAD preflight)
+  block:
+
+    - name: Read stored VM definition ConfigMaps
+      kubernetes.core.k8s_info:
+        context: "{{ k8s_context }}"
+        api_version: v1
+        kind: ConfigMap
+        namespace: "{{ item.namespace }}"
+        name: "vmdef-{{ item.name }}"
+      loop: "{{ dr_vms }}"
+      loop_control: { label: "{{ item.namespace }}/{{ item.name }}" }
+      register: cmdefs
+
+    - name: Build list of required NADs from each VM definition
+      vars:
+        cm: "{{ item.resources[0] }}"
+        vm_yaml: "{{ cm.data['vm.yaml'] | default(cm.data.vm) }}"
+        vm_obj: "{{ vm_yaml | from_yaml }}"
+        vm_ns: "{{ vm_obj.metadata.namespace }}"
+        nets: "{{ vm_obj.spec.template.spec.networks | default([]) }}"
+        # Extract all multus.networkName refs; may be 'ns/name' or just 'name'
+        multus_names: >-
+          {{
+            nets
+            | selectattr('multus','defined')
+            | map(attribute='multus.networkName')
+            | list
+          }}
+        # Normalize to a list of dicts: [{name: <name>, namespace: <ns>}]
+        normalized: >-
+          {{
+            multus_names | map('regex_search','^([^/]+)/(.+)$') | list
+          }}
+      set_fact:
+        required_nads: >-
+          {{
+            (required_nads | default([]))
+            + (
+              multus_names
+              | map('regex_search','^([^/]+)/(.+)$')
+              | map('default', None)
+              | list
+            )
+            | zip(multus_names)
+            | map('list')
+            | map('first')
+            | list
+          }}
+      loop: "{{ cmdefs.results | selectattr('resources','defined') | selectattr('resources','length','>',0) | list }}"
+      vars:
+        # helper jinja to build [{namespace,name}] even if namespace not provided
+        required_nads: "{{ required_nads | default([]) }}"
+      when: item.resources|length > 0
+      register: _nad_accumulator
+
+    # The above is cumbersome in pure Jinja; do a cleaner pass:
+    - name: Normalize required NADs across all VMs
+      set_fact:
+        nad_requirements: "{{ [] }}"
+
+    - name: Accumulate NAD requirements
+      vars:
+        cm: "{{ item.resources[0] }}"
+        vm_yaml: "{{ cm.data['vm.yaml'] | default(cm.data.vm) }}"
+        vm_obj: "{{ vm_yaml | from_yaml }}"
+        vm_ns: "{{ vm_obj.metadata.namespace }}"
+        nets: "{{ vm_obj.spec.template.spec.networks | default([]) }}"
+        multus_entries: >-
+          {{
+            nets
+            | selectattr('multus','defined')
+            | map(attribute='multus')
+            | list
+          }}
+        needed: >-
+          {%- set out = [] -%}
+          {%- for m in multus_entries -%}
+            {%- set nm = m.networkName -%}
+            {%- if '/' in nm -%}
+              {%- set ns = nm.split('/')[0] -%}
+              {%- set name = nm.split('/')[1] -%}
+            {%- else -%}
+              {%- set ns = vm_ns -%}   {# default to VM namespace #}
+              {%- set name = nm -%}
+            {%- endif -%}
+            {%- set _ = out.append({'namespace': ns, 'name': name}) -%}
+          {%- endfor -%}
+          {{ out }}
+      set_fact:
+        nad_requirements: "{{ nad_requirements + needed }}"
+      loop: "{{ cmdefs.results | selectattr('resources','defined') | selectattr('resources','length','>',0) | list }}"
+
+    - name: De-duplicate NAD requirements
+      set_fact:
+        nad_requirements: "{{ nad_requirements | unique }}"
+      when: nad_requirements is defined
+
+    - name: Check that required NADs exist on the destination
+      kubernetes.core.k8s_info:
+        context: "{{ k8s_context }}"
+        api_version: k8s.cni.cncf.io/v1
+        kind: NetworkAttachmentDefinition
+        namespace: "{{ item.namespace }}"
+        name: "{{ item.name }}"
+      loop: "{{ nad_requirements | default([]) }}"
+      loop_control:
+        label: "{{ item.namespace }}/{{ item.name }}"
+      register: nad_checks
+      when: (nad_requirements | default([])) | length > 0
+
+    - name: Fail if any required NADs are missing
+      vars:
+        missing: >-
+          {{
+            nad_checks.results
+            | selectattr('resources','defined')
+            | selectattr('resources','length','==',0)
+            | map(attribute='item')
+            | list
+          }}
+      assert:
+        that:
+          - (missing | length) == 0
+        fail_msg: |
+          Some required Multus NADs are missing on destination:
+          {{ missing | map('to_nice_yaml') | list | join('\n') }}
+          Please create these NetworkAttachmentDefinitions before retrying.
+
+    - name: Apply VM YAML (exact spec, rewired volumes)
+      vars:
+        cm: "{{ item.resources[0] }}"
+        vm_yaml: "{{ cm.data['vm.yaml'] | default(cm.data.vm) }}"
+      kubernetes.core.k8s:
+        context: "{{ k8s_context }}"
+        state: present
+        definition: "{{ vm_yaml | from_yaml }}"
+      loop: "{{ cmdefs.results | selectattr('resources','defined') | selectattr('resources','length','>',0) | list }}"

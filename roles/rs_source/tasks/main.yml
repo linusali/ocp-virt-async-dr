@@ -1,0 +1,8 @@
+- name: Create/patch RS for each source PVC
+  kubernetes.core.k8s:
+    context: "{{ k8s_context }}"
+    state: present
+    definition: "{{ lookup('template', 'replicationsource.yml.j2') }}"
+  loop: "{{ discovered_pvcs }}"
+  loop_control:
+    loop_var: pvc
