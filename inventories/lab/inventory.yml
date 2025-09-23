@@ -1,6 +1,6 @@
 all:
   vars:
-    k8s_auth_verify_ssl: true
+    k8s_auth_verify_ssl: false
 
     # Use contexts or kubeconfig paths (pass via --extra-vars in AWX if needed)
     k8s_src_context: "ocp-src"
@@ -23,10 +23,10 @@ all:
 
     # VM list to protect (namespace is required)
     dr_vms:
-      - name: "erp-db"
-        namespace: "apps"
-      - name: "erp-web"
-        namespace: "apps"
+      - name: "db-server"
+        namespace: "spoke1"
+      - name: "web-server"
+        namespace: "spoke1"
 
     # Labels
     dr_label_key: "dr/managed"
