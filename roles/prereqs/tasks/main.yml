@@ -1,15 +1,3 @@
-- name: Ensure VolSync OperatorGroup
-  kubernetes.core.k8s:
-    context: "{{ k8s_context }}"
-    state: present
-    definition:
-      apiVersion: operators.coreos.com/v1
-      kind: OperatorGroup
-      metadata:
-        name: volsync-og
-        namespace: openshift-operators
-      spec: {}
-
 - name: Subscribe VolSync
   kubernetes.core.k8s:
     context: "{{ k8s_context }}"
@@ -18,13 +6,17 @@
       apiVersion: operators.coreos.com/v1alpha1
       kind: Subscription
       metadata:
-        name: volsync
+        labels:
+          operators.coreos.com/volsync-product.openshift-operators: ''
+        name: volsync-product
         namespace: openshift-operators
       spec:
         channel: stable
+        installPlanApproval: Automatic
         name: volsync-product
         source: redhat-operators
         sourceNamespace: openshift-marketplace
+
 
 - name: Install MetalLB (optional)
   when: install_metallb | default(false) | bool
@@ -35,10 +27,13 @@
       apiVersion: operators.coreos.com/v1alpha1
       kind: Subscription
       metadata:
+        labels:
+          operators.coreos.com/metallb-operator.metallb-system: ''
         name: metallb-operator
-        namespace: openshift-operators
+        namespace: metallb-system
       spec:
         channel: stable
+        installPlanApproval: Automatic
         name: metallb-operator
         source: redhat-operators
         sourceNamespace: openshift-marketplace
