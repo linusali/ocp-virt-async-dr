@@ -21,7 +21,7 @@
         name: rs_source
       vars:
         k8s_context: "{{ k8s_src_context }}"
-        discovered_pvcs: "{{ discovered.pvcs }}"
+        discovered_pvcs: "{{ pvcs }}"
         rs_schedule: "{{ cron_expr }}"
         copy_method: "{{ volsync_copy_method }}"
         label_key: "{{ dr_label_key }}"
@@ -32,7 +32,7 @@
         name: rd_dest
       vars:
         k8s_context: "{{ k8s_dest_context }}"
-        discovered_pvcs: "{{ discovered.pvcs }}"
+        discovered_pvcs: "{{ pvcs }}"
         dest_storage_class: "{{ dest_storage_class }}"
         dest_snapshot_class: "{{ dest_snapshot_class }}"
         dest_access_modes: "{{ dest_access_modes }}"
