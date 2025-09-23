@@ -14,14 +14,19 @@
   loop: "{{ dr_vms }}"
   register: vminfo
 
+- set_fact:
+    dvinfo_pervm: "{{ dvinfo | default([]) + [ { 'ns': item.0.item.namespace, 'dvs': item.1.spec.dataVolumeTemplates } ] }}"
+  loop: "{{ vminfo.results | subelements('resources') }}"
+
 - name: Get DVs for VMs
   when: discovery_mode == 'source'
   kubernetes.core.k8s_info:
     context: "{{ k8s_context }}"
     api_version: cdi.kubevirt.io/v1beta1
     kind: DataVolume
-    namespace: "{{ item.item.namespace }}"
-  loop: "{{ vminfo.results }}"
+    namespace: "{{ item.0.ns }}"
+    name: "{{ item.1.metadata.name }}"
+  loop: "{{ dvinfo_pervm | subelements('dvs') }}"
   register: dvinfo
 
 - name: Get PVCs referenced by DVs
