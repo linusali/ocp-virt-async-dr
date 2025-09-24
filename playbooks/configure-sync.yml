@@ -10,8 +10,8 @@
 
   tasks:
     - include_role:
-      name: tls_psk
-      
+        name: tls_psk
+
     - name: Discover PVCs for all VMs on source
       include_role:
         name: discover
