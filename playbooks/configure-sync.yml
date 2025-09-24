@@ -9,6 +9,9 @@
     cron_expr: "*/{{ volsync_every_minutes }} * * * *"
 
   tasks:
+    - include_role:
+      name: tls_psk
+      
     - name: Discover PVCs for all VMs on source
       include_role:
         name: discover
@@ -21,12 +24,6 @@
       vars:
         k8s_context: "{{ k8s_dest_context }}"
         discovered_pvcs: "{{ pvcs }}"
-        dest_storage_class: "{{ dest_storage_class }}"
-        dest_snapshot_class: "{{ dest_snapshot_class }}"
-        dest_access_modes: "{{ dest_access_modes }}"
-        copy_method: "{{ volsync_copy_method }}"
-        label_key: "{{ dr_label_key }}"
-        label_val: "{{ dr_label_value }}"
 
     - name: Create/patch ReplicationSource on source (per PVC)
       include_role:

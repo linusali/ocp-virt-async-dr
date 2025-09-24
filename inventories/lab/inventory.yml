@@ -4,7 +4,7 @@ all:
 
     # Use contexts or kubeconfig paths (pass via --extra-vars in AWX if needed)
     k8s_src_context: "ocp-src"
-    k8s_dest_context: "ocp-dest"
+    k8s_dest_context: "ocp-dst"
 
     # VolSync schedule
     volsync_every_minutes: 15
@@ -13,7 +13,8 @@ all:
     # Destination storage
     dest_storage_class: "freenas-iscsi-csi"
     dest_snapshot_class: "freenas-iscsi-csi"
-    dest_access_modes: ["ReadWriteOnce"]
+    dest_access_modes: 
+    - "ReadWriteOnce"
 
     # MetalLB (optional on DR)
     enable_metallb: false
@@ -29,10 +30,6 @@ all:
         namespace: "spoke1"
       - name: "fedora-2"
         namespace: "spoke1"
-
-    # Labels
-    dr_label_key: "dr/managed"
-    dr_label_value: "true"
 
     # VM restoration behavior
     keep_same_vm_name: true          # if false, -dr suffix will be used

@@ -1,6 +1,3 @@
-- debug:
-  msg: "{{ discovered_pvcs}}"
-
 - name: Ensure destination PVC exists with requested spec
   kubernetes.core.k8s:
     context: "{{ k8s_context }}"
@@ -11,8 +8,8 @@
       metadata:
         name: "{{ item.metadata.name }}-dst"
         namespace: "{{ item.metadata.namespace }}"
-        labels:
-          "{{ label_key }}": "{{ label_val }}"
+        labels: 
+          "dr/managed": "true"
       spec:
         accessModes: "{{ dest_access_modes }}"
         storageClassName: "{{ dest_storage_class }}"
