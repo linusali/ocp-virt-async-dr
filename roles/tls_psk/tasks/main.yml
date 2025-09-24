@@ -1,0 +1,50 @@
+- name: Ensure PSK dir
+  ansible.builtin.file:
+    path: "{{ volsync_tls_key_file | expanduser | realpath | dirname }}"
+    state: directory
+    mode: "0700"
+
+- name: Generate PSK if missing
+  vars:
+    rand_hex: "{{ lookup('password', '/dev/null', length=64, chars='hexdigits') | lower }}"
+    psk_line: "{{ volsync_tls_key_id }}:{{ rand_hex }}"
+  ansible.builtin.copy:
+    dest: "{{ volsync_tls_key_file | expanduser | realpath }}"
+    content: "{{ psk_line }}\n"
+    mode: "0600"
+    force: false
+
+- name: Read PSK file
+  ansible.builtin.slurp:
+    src: "{{ volsync_tls_key_file | expanduser | realpath }}"
+  register: psk_slurp
+
+- name: Create PSK Secret on SOURCE (all DR namespaces)
+  kubernetes.core.k8s:
+    context: "{{ k8s_src_context }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ volsync_tls_secret_name }}"
+        namespace: "{{ item }}"
+      type: Opaque
+      data:
+        psk.txt: "{{ psk_slurp.content }}"
+  loop: "{{ dr_vms | map(attribute='namespace') | unique | list }}"
+
+- name: Create PSK Secret on DEST (all DR namespaces)
+  kubernetes.core.k8s:
+    context: "{{ k8s_dest_context }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ volsync_tls_secret_name }}"
+        namespace: "{{ item }}"
+      type: Opaque
+      data:
+        psk.txt: "{{ psk_slurp.content }}"
+  loop: "{{ dr_vms | map(attribute='namespace') | unique | list }}"

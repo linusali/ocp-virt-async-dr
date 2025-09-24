@@ -15,7 +15,7 @@
   register: vminfo
 
 - set_fact:
-    dvinfo_pervm: "{{ dvinfo | default([]) + [ { 'ns': item.0.item.namespace, 'dvs': item.1.spec.dataVolumeTemplates } ] }}"
+    dvinfo_pervm: "{{ dvinfo_pervm | default([]) + [ { 'ns': item.0.item.namespace, 'dvs': item.1.spec.dataVolumeTemplates } ] }}"
   loop: "{{ vminfo.results | subelements('resources') }}"
 
 - name: Get DVs for VMs
@@ -26,7 +26,7 @@
     kind: DataVolume
     namespace: "{{ item.0.ns }}"
     name: "{{ item.1.metadata.name }}"
-  loop: "{{ dvinfo_pervm | subelements('dvs') }}"
+  loop: "{{ dvinfo_pervm | flatten | subelements('dvs') }}"
   register: dvinfo
 
 - name: Get PVCs referenced by DVs
@@ -35,7 +35,8 @@
     context: "{{ k8s_context }}"
     api_version: v1
     kind: PersistentVolumeClaim
-    namespace: "{{ item.item.item.namespace }}"
+    namespace: "{{ item.resources[0].metadata.namespace }}"
+    name: "{{ item.resources[0].status.claimName }}"
   loop: "{{ dvinfo.results }}"
   register: pvcinfo
 

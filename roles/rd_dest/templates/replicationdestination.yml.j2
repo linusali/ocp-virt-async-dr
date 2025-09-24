@@ -6,11 +6,11 @@ metadata:
   labels:
     {{ label_key }}: "{{ label_val }}"
 spec:
-  trigger:
-    manual: true
   rsyncTLS:
     copyMethod: {{ copy_method }}
     destinationPVC: {{ pvc.metadata.name }}-dst
-    storageClassName: {{ pvc.spec.storageClassName | default(dest_storage_class) }}
+    storageClassName: {{ dest_storage_class }}
+    keySecret: {{ volsync_tls_secret_name }}    
     {% if copy_method == 'Snapshot' %}volumeSnapshotClassName: {{ dest_snapshot_class }}{% endif %}
-    serviceType: ClusterIP
+    serviceType: LoadBalancer
+    accessModes: {{ pvc.spec.accessModes }}

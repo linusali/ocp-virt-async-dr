@@ -6,11 +6,10 @@ metadata:
   labels:
     {{ label_key }}: "{{ label_val }}"
 spec:
-  sourcePVC: {{ pvc.metadata.name }}
+  sourcePVC: {{ pvc.spec.destinationPVC }}
   trigger:
     schedule: "{{ rs_schedule }}"
   rsyncTLS:
     copyMethod: {{ copy_method }}
-    serviceType: ClusterIP
-    keySecretRef:
-      name: rsync-key-secret
+    keySecret: {{ volsync_tls_secret_name }}
+    address: {{pvc.status.rsyncTLS.address}}
