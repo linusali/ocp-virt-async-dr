@@ -4,7 +4,7 @@ metadata:
   name: rs-{{ repsrc.repdest.metadata.name }}
   namespace: {{ repsrc.repdest.metadata.namespace }}
   labels:
-    {{ label_key }}: "{{ label_val }}"
+    "dr/managed": "true"
 spec:
   sourcePVC: {{ repsrc.repdest.metadata.name }}
   trigger:
