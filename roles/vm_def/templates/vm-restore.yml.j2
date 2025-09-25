@@ -8,7 +8,7 @@ metadata:
   name: {{ (keep_same_vm_name | default(true) | bool) | ternary(base_name, base_name ~ '-dr') }}
   namespace: {{ ns }}
   labels:
-    {{ label_key }}: "{{ label_val }}"
+    "dr/managed": "true"
 spec:
   running: {{ 'true' if (start_on_restore | default(true)) else 'false' }}
   template:
