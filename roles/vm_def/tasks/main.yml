@@ -37,7 +37,7 @@
             name: "vmdef-{{ (item.item.resources[0].metadata.name) }}"
             namespace: "{{ item.item.resources[0].metadata.namespace }}"
             labels:
-              "{{ label_key }}": "{{ label_val }}"
+              "dr/managed": "true"
           data:
             vm.yaml: "{{ item.ansible_facts.vm_restore_yaml | to_nice_yaml }}"
       loop: "{{ rendered.results }}"
