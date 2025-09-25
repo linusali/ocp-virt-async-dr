@@ -1,15 +1,15 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: rs-{{ pvc.metadata.name }}
-  namespace: {{ pvc.metadata.namespace }}
+  name: rs-{{ repsrc.repdest.metadata.name }}
+  namespace: {{ repsrc.repdest.metadata.namespace }}
   labels:
     {{ label_key }}: "{{ label_val }}"
 spec:
-  sourcePVC: {{ pvc.spec.destinationPVC }}
+  sourcePVC: {{ repsrc.repdest.metadata.name }}
   trigger:
     schedule: "{{ rs_schedule }}"
   rsyncTLS:
     copyMethod: {{ copy_method }}
     keySecret: {{ volsync_tls_secret_name }}
-    address: {{pvc.status.rsyncTLS.address}}
+    address: {{repsrc.result.status.rsyncTLS.address}}

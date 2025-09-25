@@ -27,5 +27,5 @@
     definition: "{{ lookup('template', 'replicationdestination.yml.j2') }}"
   loop: "{{ discovered_pvcs }}"
   loop_control:
-    loop_var: pvc
-  register: repdest
+    loop_var: repdest
+  register: repdests
