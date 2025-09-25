@@ -10,6 +10,8 @@ spec:
   trigger:
     schedule: "{{ rs_schedule }}"
   rsyncTLS:
+    volumeSnapshotClassName: {{ src_snapshot_class }}
+    storageClassName: {{ src_snapshot_class }}
     copyMethod: {{ copy_method }}
     keySecret: {{ volsync_tls_secret_name }}
     address: {{repsrc.result.status.rsyncTLS.address}}
