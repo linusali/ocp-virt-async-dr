@@ -1,54 +1,11 @@
-# Builds a restore-ready VM from the source spec, preserving name, MACs, disks & networks.
-# Volume references are remapped to the replicated "*-dst" PVCs.
-
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  # Keep the same name when requested; otherwise suffix with -dr
   name: {{ (keep_same_vm_name | default(true) | bool) | ternary(base_name, base_name ~ '-dr') }}
   namespace: {{ ns }}
   labels:
     "dr/managed": "true"
 spec:
   running: {{ 'true' if (start_on_restore | default(true)) else 'false' }}
-  template:
-    metadata:
-      # Preserve original labels (domain selectors, etc.)
-      labels: {{ src_vm.spec.template.metadata.labels | default({}) | to_nice_yaml(indent=8) | trim }}
-      # (Optional) You may want to preserve annotations too:
-      annotations: {{ src_vm.spec.template.metadata.annotations | default({}) | to_nice_yaml(indent=8) | trim }}
-    spec:
-      domain:
-        # Preserve CPU/memory
-        cpu: {{ src_vm.spec.template.spec.domain.cpu | default({}) | to_nice_yaml(indent=8) | trim }}
-        resources: {{ src_vm.spec.template.spec.domain.resources | default({}) | to_nice_yaml(indent=8) | trim }}
-        devices:
-          # Preserve disks exactly (bus types, bootOrder, etc.)
-          disks: {{ src_vm.spec.template.spec.domain.devices.disks | default([]) | to_nice_yaml(indent=10) | trim }}
-          # Preserve NIC interfaces exactly (keeps macAddress, model, masquerade/bridge/sriov)
-          interfaces: {{ src_vm.spec.template.spec.domain.devices.interfaces | default([]) | to_nice_yaml(indent=10) | trim }}
+  {{ src_vm.spec.template }}
 
-      # Preserve networks (keeps Multus networkName references)
-      networks: {{ src_vm.spec.template.spec.networks | default([]) | to_nice_yaml(indent=6) | trim }}
-
-      terminationGracePeriodSeconds: {{ src_vm.spec.template.spec.terminationGracePeriodSeconds | default(0) }}
-
-      # Rewire volumes to -dst PVCs where appropriate
-      volumes:
-{% for vol in (src_vm.spec.template.spec.volumes | default([])) %}
-        - name: {{ vol.name }}
-{% if vol.persistentVolumeClaim is defined and vol.persistentVolumeClaim.claimName is defined %}
-          persistentVolumeClaim:
-            claimName: {{ vol.persistentVolumeClaim.claimName }}-dst
-{% elif vol.dataVolume is defined and vol.dataVolume.name is defined %}
-          persistentVolumeClaim:
-            claimName: {{ vol.dataVolume.name }}-dst
-{% elif vol.containerDisk is defined %}
-          containerDisk: {{ vol.containerDisk | to_nice_yaml(indent=12) | trim }}
-{% elif vol.cloudInitNoCloud is defined %}
-          cloudInitNoCloud: {{ vol.cloudInitNoCloud | to_nice_yaml(indent=12) | trim }}
-{% else %}
-          # Unhandled volume type copied as-is
-          {{ (vol | to_nice_yaml(indent=10)) | trim }}
-{% endif %}
-{% endfor %}

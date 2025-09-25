@@ -8,6 +8,14 @@ Key capabilities:
 - Schedule periodic syncs (every X minutes).
 - Automatically pick up **new VM disks** with a re-scan.
 - **Capture sanitized VM definitions** from the source and store them on the destination for **exact restoration** (same CPU, memory, devices, interfaces, MACs).
-- Failover workflow pauses RD, then restores **the same VM spec** at the DR site, pointing disks to the `*-dst` PVCs.
+- Failover workflow pauses RD, then restores **the same VM spec** at the DR site, pointing disks to the correct PVCs.
 
 > Works with Ansible Core and AWX.
+
+Prereq
+```
+dnf install ansible-core git python3-pip
+pip3 install kubernetes
+ansible-galaxy collection install kubernetes.core
+ansible-galaxy collection install community.general
+```

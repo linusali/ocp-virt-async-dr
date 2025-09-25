@@ -1,3 +1,0 @@
-- name: NOTE
-  debug:
-    msg: "This role is superseded by roles/vm_def + roles/restore for exact spec restoration."

@@ -8,7 +8,7 @@ metadata:
 spec:
   rsyncTLS:
     copyMethod: {{ volsync_copy_method }}
-    destinationPVC: {{ repdest.metadata.name }}-dst
+    destinationPVC: {{ repdest.metadata.name }}
     storageClassName: {{ dest_storage_class }}
     keySecret: {{ volsync_tls_secret_name }}    
     serviceType: LoadBalancer

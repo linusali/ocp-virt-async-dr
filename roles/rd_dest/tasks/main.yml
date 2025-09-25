@@ -6,7 +6,7 @@
       apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: "{{ item.metadata.name }}-dst"
+        name: "{{ item.metadata.name }}
         namespace: "{{ item.metadata.namespace }}"
         labels: 
           "dr/managed": "true"
