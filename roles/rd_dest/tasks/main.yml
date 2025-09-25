@@ -13,6 +13,7 @@
       spec:
         accessModes: "{{ dest_access_modes }}"
         storageClassName: "{{ dest_storage_class }}"
+        volumeMode: Block
         resources:
           requests:
             storage: "{{ item.spec.resources.requests.storage }}"
