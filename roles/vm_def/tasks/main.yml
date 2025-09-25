@@ -14,30 +14,9 @@
       loop_control: { label: "{{ item.namespace }}/{{ item.name }}" }
       register: vm_src_info
 
-    - name: Build restore YAML (preserve name, mac, networks; rewire volumes)
-      vars:
-        src_vm: "{{ item.resources[0] }}"
-        ns: "{{ src_vm.metadata.namespace }}"
-        base_name: "{{ src_vm.metadata.name }}"
-      set_fact:
-        vm_restore_yaml: "{{ lookup('template', 'vm-restore.yml.j2') }}"
-      loop: "{{ vm_src_info.results }}"
-      loop_control:
-        label: "{{ (item.resources|default([{'metadata': {'name': 'unknown'}}]))[0].metadata.name | default('unknown') }}"
-      register: rendered
-
-    - name: Create/Update ConfigMap on destination with VM definition
+    - name: Create VM definitions at destination
       kubernetes.core.k8s:
         context: "{{ ctx_dst }}"
         state: present
-        definition:
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: "vmdef-{{ (item.item.resources[0].metadata.name) }}"
-            namespace: "{{ item.item.resources[0].metadata.namespace }}"
-            labels:
-              "dr/managed": "true"
-          data:
-            vm.yaml: "{{ item.ansible_facts.vm_restore_yaml | to_nice_yaml }}"
-      loop: "{{ rendered.results }}"
+        definition: "{{ lookup('template', 'vm-restore.yml.j2') }}"
+      loop: "{{ vm_src_info.results }}"

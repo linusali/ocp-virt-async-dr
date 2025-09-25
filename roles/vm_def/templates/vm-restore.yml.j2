@@ -1,11 +1,12 @@
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  name: {{ (keep_same_vm_name | default(true) | bool) | ternary(base_name, base_name ~ '-dr') }}
-  namespace: {{ ns }}
+  name: {{ item.item.name }}
+  namespace: {{ item.item.namespace }}
   labels:
     "dr/managed": "true"
 spec:
-  running: {{ 'true' if (start_on_restore | default(true)) else 'false' }}
-  {{ src_vm.spec.template }}
-
+  runStrategy: {{ 'Always' if (start_on_restore | default('Always')) else 'Halted' }}
+  dataVolumeTemplates: {{ item.resources[0].spec.dataVolumeTemplates | ansible.utils.remove_keys(target=['creationTimestamp']) }}
+  {% if item.resources[0].spec.preference is defined %}preference: {{ item.resources[0].spec.preference }} {% endif -%}
+  template: {{ item.resources[0].spec.template | ansible.utils.remove_keys(target=['creationTimestamp']) }}
