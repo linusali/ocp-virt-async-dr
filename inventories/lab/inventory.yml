@@ -30,12 +30,9 @@ all:
         namespace: "spoke1"
       - name: "web-server"
         namespace: "spoke1"
-      - name: "fedora-2"
-        namespace: "spoke1"
 
     # VM restoration behavior
-    keep_same_vm_name: true          # if false, -dr suffix will be used
-    start_on_restore: true           # set false to just create but not start
+    start_on_restore: false           # set false to just create but not start
 
     volsync_tls_secret_name: "volsync-tls-psk"     # Secret name used on both clusters & all namespaces
     volsync_tls_key_id: "1"                        # ID part before the colon in psk.txt
