@@ -19,6 +19,7 @@
             storage: "{{ item.spec.resources.requests.storage }}"
   loop: "{{ discovered_pvcs }}"
   loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
     loop_var: item
 
 - name: Create/patch RD for each PVC on destination
@@ -26,12 +27,38 @@
     context: "{{ k8s_context }}"
     state: present
     definition: "{{ lookup('template', 'replicationdestination.yml.j2') }}"
-    wait: true
-    wait_condition:
-      type: Synchronizing
-      status: True
-      reason: SyncInProgress
   loop: "{{ discovered_pvcs }}"
   loop_control:
     loop_var: repdstc
-  register: repdests
+    label: "{{ item.metadata.namespace }}/rd-{{ item.metadata.name }}"
+
+- name: Gather all ReplicationDestination objects (for polling)
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: volsync.backube/v1alpha1
+    kind: ReplicationDestination
+  register: rd_all
+  label: "Gathering RD"
+
+- name: Wait for RD to have an address (rsync endpoint ready)
+  vars:
+    rd_name: "rd-{{ item.0.metadata.name }}"
+    rd_ns: "{{ item.0.metadata.namespace }}"
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: volsync.backube/v1alpha1
+    kind: ReplicationDestination
+    name: "{{ rd_name }}"
+    namespace: "{{ rd_ns }}"
+  register: rd_info
+  until: >
+    rd_info.resources is defined and
+    (rd_info.resources | length) > 0 and
+    (rd_info.resources[0].status is defined) and
+    (rd_info.resources[0].status.rsyncTLS is defined) and
+    (rd_info.resources[0].status.rsyncTLS.address | default('')) != ''
+  retries: 12
+  delay: 5
+  loop: "{{ discovered_pvcs | product([0]) | list }}"   
+  loop_control:
+    label: "{{ item.0.metadata.namespace }}/rd-{{ item.0.metadata.name }}"

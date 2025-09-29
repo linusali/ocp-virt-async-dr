@@ -11,7 +11,8 @@
         namespace: "{{ item.namespace }}"
         name: "{{ item.name }}"
       loop: "{{ dr_vms }}"
-      loop_control: { label: "{{ item.namespace }}/{{ item.name }}" }
+      loop_control: 
+        label: "{{ item.namespace }}/{{ item.name }}" 
       register: vm_src_info
 
     - name: Create VM definitions at destination
@@ -20,3 +21,5 @@
         state: present
         definition: "{{ lookup('template', 'vm-restore.yml.j2') }}"
       loop: "{{ vm_src_info.results }}"
+      loop_control:
+        label: "{{ item.item.namespace }}/{{ item.item.name }}"
