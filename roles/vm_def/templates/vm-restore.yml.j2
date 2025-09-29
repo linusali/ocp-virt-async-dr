@@ -12,6 +12,6 @@
     "runStrategy": "Halted",
     "dataVolumeTemplates": {{ item.resources[0].spec.dataVolumeTemplates | ansible.utils.remove_keys(target=['creationTimestamp']) }},
     {% if item.resources[0].spec.preference is defined %}"preference": {{ item.resources[0].spec.preference }}, {% endif %}
-    "template": {{ item.resources[0].spec.template | ansible.utils.remove_keys(target=['creationTimestamp','cloudInitNoCloud']) }}
+    "template": {{ item.resources[0].spec.template | ansible.utils.remove_keys(target=['creationTimestamp']) }}
   }
 }
