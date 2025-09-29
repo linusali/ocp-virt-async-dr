@@ -1,16 +1,16 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationDestination
 metadata:
-  name: rd-{{ repdest.metadata.name }}
-  namespace: {{ repdest.metadata.namespace }}
+  name: rd-{{ repdstc.metadata.name }}
+  namespace: {{ repdstc.metadata.namespace }}
   labels:
     "dr/managed": "true"
 spec:
   rsyncTLS:
     copyMethod: {{ volsync_copy_method }}
-    destinationPVC: {{ repdest.metadata.name }}
+    destinationPVC: {{ repdstc.metadata.name }}
     storageClassName: {{ dest_storage_class }}
     keySecret: {{ volsync_tls_secret_name }}    
     serviceType: LoadBalancer
-    accessModes: {{ repdest.spec.accessModes }}
+    accessModes: {{ repdstc.spec.accessModes }}
     {% if volsync_copy_method == 'Snapshot' %}volumeSnapshotClassName: {{ dest_snapshot_class }}{% endif %}
