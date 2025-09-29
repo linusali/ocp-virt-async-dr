@@ -1,12 +1,12 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: rs-{{ repsrc.repdest.metadata.name }}
-  namespace: {{ repsrc.repdest.metadata.namespace }}
+  name: rs-{{ repsrc.repdstc.metadata.name }}
+  namespace: {{ repsrc.repdstc.metadata.namespace }}
   labels:
     "dr/managed": "true"
 spec:
-  sourcePVC: {{ repsrc.repdest.metadata.name }}
+  sourcePVC: {{ repsrc.repdstc.metadata.name }}
   trigger:
     schedule: "{{ rs_schedule }}"
   rsyncTLS:
