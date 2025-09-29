@@ -29,7 +29,6 @@
     definition: "{{ lookup('template', 'replicationdestination.yml.j2') }}"
   loop: "{{ discovered_pvcs }}"
   loop_control:
-    loop_var: repdstc
     label: "{{ item.metadata.namespace }}/rd-{{ item.metadata.name }}"
 
 - name: Gather all ReplicationDestination objects (for polling)
