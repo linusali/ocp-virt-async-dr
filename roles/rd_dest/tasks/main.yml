@@ -27,6 +27,10 @@
     state: present
     definition: "{{ lookup('template', 'replicationdestination.yml.j2') }}"
     wait: true
+    wait_condition:
+      type: Synchronizing
+      status: True
+      reason: SyncInProgress
   loop: "{{ discovered_pvcs }}"
   loop_control:
     loop_var: repdstc
