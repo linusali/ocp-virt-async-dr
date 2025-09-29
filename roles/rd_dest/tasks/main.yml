@@ -28,5 +28,20 @@
     definition: "{{ lookup('template', 'replicationdestination.yml.j2') }}"
   loop: "{{ discovered_pvcs }}"
   loop_control:
+    loop_var: repdstc
+
+- name: Sleep for 10 seconds 
+  ansible.builtin.wait_for:
+    timeout: 10
+
+- name: Get status of the RDs
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: volsync.backube/v1alpha1
+    kind: ReplicationDestination
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ item.metadata.namespace }}"
+  loop: "{{ discovered_pvcs }}"
+  loop_control:
     loop_var: repdest
   register: repdests
