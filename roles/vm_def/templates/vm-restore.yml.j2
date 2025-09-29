@@ -1,12 +1,17 @@
-apiVersion: kubevirt.io/v1
-kind: VirtualMachine
-metadata:
-  name: {{ item.item.name }}
-  namespace: {{ item.item.namespace }}
-  labels:
-    "dr/managed": "true"
-spec:
-  runStrategy: {{ 'Always' if (start_on_restore | default('Always')) else 'Halted' }}
-  dataVolumeTemplates: {{ item.resources[0].spec.dataVolumeTemplates | ansible.utils.remove_keys(target=['creationTimestamp']) }}
-  {% if item.resources[0].spec.preference is defined %}preference: {{ item.resources[0].spec.preference }} {% endif -%}
-  template: {{ item.resources[0].spec.template | ansible.utils.remove_keys(target=['creationTimestamp']) }}
+{
+  "apiVersion": "kubevirt.io/v1",
+  "kind": "VirtualMachine",
+  "metadata": {
+    "name": "{{ item.item.name }}",
+    "namespace": "{{ item.item.namespace }}",
+    "labels": {
+      "dr/managed": "true"
+    }
+  },
+  "spec": {
+    "runStrategy": {{ "Always" if (start_on_restore | default("Halted")) else "Halted" }},
+    "dataVolumeTemplates": {{ item.resources[0].spec.dataVolumeTemplates | ansible.utils.remove_keys(target=['creationTimestamp']) }},
+    {% if item.resources[0].spec.preference is defined %}"preference": {{ item.resources[0].spec.preference }}, {% endif %}
+    "template": {{ item.resources[0].spec.template | ansible.utils.remove_keys(target=['creationTimestamp']) }}
+  }
+}
