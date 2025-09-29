@@ -38,7 +38,6 @@
     api_version: volsync.backube/v1alpha1
     kind: ReplicationDestination
   register: rd_all
-  label: "Gathering RD"
 
 - name: Wait for RD to have an address (rsync endpoint ready)
   vars:
