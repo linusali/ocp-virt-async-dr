@@ -22,3 +22,5 @@
           schedule: "{{ rs_schedule }}"
         rsyncTLS: "{{ item.spec.rsyncTLS }}"
   loop: "{{ rslist.resources | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
