@@ -54,20 +54,6 @@
     pvcs: "{{ pvcinfo.results | map(attribute='resources') | list | flatten | list }}"
 
 # DEST MODE
-- name: Get DR PVCs by label on destination
-  when: discovery_mode == 'dest'
-  kubernetes.core.k8s_info:
-    context: "{{ k8s_context }}"
-    api_version: v1
-    kind: PersistentVolumeClaim
-    label_selectors: ["{{ dr_label_key }}={{ dr_label_value }}"]
-  register: dest_pvcs
-
-- name: Build normalized PVC list (dest)
-  when: discovery_mode == 'dest'
-  set_fact:
-    pvcs: "{{ dest_pvcs.resources | default([]) }}"
-
 - name: Get ReplicationDestination CRs (dest mode)
   when: discovery_mode == 'dest'
   kubernetes.core.k8s_info:

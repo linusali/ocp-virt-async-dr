@@ -14,7 +14,7 @@
         that: confirm_failover | bool
         fail_msg: "Set confirm_failover=true to proceed."
 
-    - name: Discover DR PVCs and RD CRs
+    - name: Discover DR RD CRs
       include_role:
         name: discover
       vars:
@@ -34,10 +34,11 @@
             namespace: "{{ item.namespace }}"
           spec: "{{ item.spec | combine({'paused': True}) }}"
       loop: "{{ destview.rds | default([]) }}"
+      loop_control:
+        label: "{{ item.namespace }}/{{ item.rd_name }}"
 
     - name: Restore VMs on destination using stored VM definitions
       include_role:
         name: restore
       vars:
         k8s_context: "{{ k8s_dest_context }}"
-        start_on_restore: "{{ start_on_restore }}"
