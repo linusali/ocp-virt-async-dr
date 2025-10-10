@@ -30,7 +30,8 @@ all:
         namespace: "spoke1"
       - name: "web-server"
         namespace: "spoke1"
-
+      - name: "fedora-2"
+        namespace: "spoke1"
     # VM restoration behavior
     start_on_restore: false           # set false to just create but not start
 
