@@ -20,7 +20,6 @@
       vars:
         k8s_context: "{{ k8s_dest_context }}"
         discovery_mode: "dest"
-      register: destview
 
     - name: Pause all ReplicationDestination CRs before attach
       kubernetes.core.k8s:
@@ -33,7 +32,7 @@
             name: "{{ item.rd_name }}"
             namespace: "{{ item.namespace }}"
           spec: "{{ item.spec | combine({'paused': True}) }}"
-      loop: "{{ destview.rds | default([]) }}"
+      loop: "{{ rds | default([]) }}"
       loop_control:
         label: "{{ item.namespace }}/{{ item.rd_name }}"
 
