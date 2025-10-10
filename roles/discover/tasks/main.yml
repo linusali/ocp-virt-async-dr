@@ -6,51 +6,66 @@
 - name: Discover source details
   when: discovery_mode == 'source'
   block:
-  - name: Get VMs (source) filtered by list
-    kubernetes.core.k8s_info:
-      context: "{{ k8s_context }}"
-      api_version: kubevirt.io/v1
-      kind: VirtualMachine
-      namespace: "{{ item.namespace }}"
-      name: "{{ item.name }}"
-    loop: "{{ dr_vms }}"
-    loop_control:
-      label: "{{ item.namespace }}/{{ item.name }}"
-    register: vminfo
+    - name: Get VMs (source) filtered by list
+      kubernetes.core.k8s_info:
+        context: "{{ k8s_context }}"
+        api_version: kubevirt.io/v1
+        kind: VirtualMachine
+        namespace: "{{ item.namespace }}"
+        name: "{{ item.name }}"
+      loop: "{{ dr_vms }}"
+      loop_control:
+        label: "{{ item.namespace }}/{{ item.name }}"
+      register: vminfo
 
-  - set_fact:
-      dvinfo_pervm: "{{ dvinfo_pervm | default([]) + [ { 'ns': item.0.item.namespace, 'dvs': item.1.spec.dataVolumeTemplates } ] }}"
-    loop: "{{ vminfo.results | subelements('resources') }}"
-    loop_control:
-      label: "{{ item.0.item.namespace }}"
+    - name: Build dvinfo_pervm only from successful results
+      vars:
+        good_results: >-
+          {{ vminfo.results | default([])
+             | selectattr('skipped','!=',True)
+             | selectattr('failed','!=',True)
+             | selectattr('resources','defined')
+             | list }}
+      set_fact:
+        dvinfo_pervm: >-
+          {{ (dvinfo_pervm | default([])) +
+             [ { 'ns': item.0.item.namespace,
+                 'dvs': item.1.spec.dataVolumeTemplates } ] }}
+      loop: "{{ good_results | subelements('resources') }}"
+      when:
+        - vminfo is defined
+        - (vminfo.results | default([])) | length > 0
+        - good_results | length > 0
+      loop_control:
+        label: "{{ item.0.item.namespace }}"
 
-  - name: Get DVs for VMs
-    kubernetes.core.k8s_info:
-      context: "{{ k8s_context }}"
-      api_version: cdi.kubevirt.io/v1beta1
-      kind: DataVolume
-      namespace: "{{ item.0.ns }}"
-      name: "{{ item.1.metadata.name }}"
-    loop: "{{ dvinfo_pervm | flatten | subelements('dvs') }}"
-    loop_control:
-      label: "{{ item.0.ns }}/{{ item.1.metadata.name }}"
-    register: dvinfo
+    - name: Get DVs for VMs
+      kubernetes.core.k8s_info:
+        context: "{{ k8s_context }}"
+        api_version: cdi.kubevirt.io/v1beta1
+        kind: DataVolume
+        namespace: "{{ item.0.ns }}"
+        name: "{{ item.1.metadata.name }}"
+      loop: "{{ dvinfo_pervm | flatten | subelements('dvs') }}"
+      loop_control:
+        label: "{{ item.0.ns }}/{{ item.1.metadata.name }}"
+      register: dvinfo
 
-  - name: Get PVCs referenced by DVs
-    kubernetes.core.k8s_info:
-      context: "{{ k8s_context }}"
-      api_version: v1
-      kind: PersistentVolumeClaim
-      namespace: "{{ item.resources[0].metadata.namespace }}"
-      name: "{{ item.resources[0].status.claimName }}"
-    loop: "{{ dvinfo.results }}"
-    loop_control:
-      label: "{{ item.resources[0].metadata.namespace }}/{{ item.resources[0].status.claimName }}"
-    register: pvcinfo
+    - name: Get PVCs referenced by DVs
+      kubernetes.core.k8s_info:
+        context: "{{ k8s_context }}"
+        api_version: v1
+        kind: PersistentVolumeClaim
+        namespace: "{{ item.resources[0].metadata.namespace }}"
+        name: "{{ item.resources[0].status.claimName }}"
+      loop: "{{ dvinfo.results }}"
+      loop_control:
+        label: "{{ item.resources[0].metadata.namespace }}/{{ item.resources[0].status.claimName }}"
+      register: pvcinfo
 
-  - name: Build normalized PVC list (source)
-    set_fact:
-      pvcs: "{{ pvcinfo.results | map(attribute='resources') | list | flatten | list }}"
+    - name: Build normalized PVC list (source)
+      set_fact:
+        pvcs: "{{ pvcinfo.results | map(attribute='resources') | list | flatten | list }}"
 
 # DEST MODE
 - name: Discover source details
@@ -63,6 +78,16 @@
       kind: ReplicationDestination
     register: rds_info
 
+    # Build rds = [{ rd_name, namespace, spec }, ...]
   - name: Normalize RD list (dest mode)
     set_fact:
-      rds: "{{ rds_info.resources | default([]) | map('extract', {'rd_name':'metadata.name','namespace':'metadata.namespace','spec':'spec'}) | list }}"
+      rds: "{{ (rds | default([])) + [ {
+              'rd_name': item.metadata.name,
+              'namespace': item.metadata.namespace,
+              'spec': item.spec
+            } ] }}"
+    loop: "{{ rds_info.resources | default([]) }}"
+    when:
+      - rds_info is defined
+      - rds_info.resources is defined
+      - (rds_info.resources | length) > 0

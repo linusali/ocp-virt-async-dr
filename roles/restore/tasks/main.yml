@@ -1,7 +1,7 @@
 - name: Start VMs at destination cluster
   block:
 
-    - name: Fetch source VM objects
+    - name: Fetch destination VM objects
       kubernetes.core.k8s_info:
         context: "{{ k8s_context }}"
         api_version: kubevirt.io/v1
