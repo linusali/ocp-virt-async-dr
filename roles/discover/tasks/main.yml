@@ -87,6 +87,8 @@
               'spec': item.spec
             } ] }}"
     loop: "{{ rds_info.resources | default([]) }}"
+    loop_control:
+      label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
     when:
       - rds_info is defined
       - rds_info.resources is defined
