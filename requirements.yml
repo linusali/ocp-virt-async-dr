@@ -2,3 +2,4 @@ collections:
   - kubernetes.core
   - ansible.posix
   - ansible.utils
+  - community.general
