@@ -1,4 +1,4 @@
-> ⚠️ **Disclaimer**: This README was written with the assistance of ChatGPT and has **not yet been fully reviewed by a human**. Please verify all commands, variable names, and steps before using it in **any** environment.
+> ⚠️ **Disclaimer**: This README is Work In Progress. Please verify all commands, variable names, and steps before using it in **any** environment.
 
 # OpenShift Virtualization Async DR with VolSync (Ansible-driven)
 
