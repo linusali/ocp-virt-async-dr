@@ -22,8 +22,6 @@
       set_fact:
         good_results: >-
           {{ vminfo.results | default([])
-             | rejectattr('skipped', 'equalto', True)
-             | rejectattr('failed', 'equalto', True)
              | selectattr('resources', 'defined')
              | selectattr('resources', 'ne', [])
              | list }}
