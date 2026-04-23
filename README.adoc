@@ -1,0 +1,402 @@
+= OpenShift Virtualization Async DR (VolSync + Ansible)
+:toc: left
+:toc-title: Contents
+:toclevels: 3
+:icons: font
+:source-highlighter: rouge
+:experimental:
+
+Role-based Ansible playbooks for asynchronous Disaster Recovery of KubeVirt VMs using VolSync's **rsyncTLS** transport.
+Disks are replicated on a schedule from a source cluster to a destination cluster; VM specs are stored at the DR site so VMs can be restored exactly (same CPU, memory, NICs, MACs) during failover.
+
+== Quick Start
+
+[source,bash]
+----
+# 1. Install operators on both clusters (run once)
+ansible-playbook playbooks/setup.yml
+
+# 2. Configure replication and store VM definitions (re-run whenever dr_vms changes)
+ansible-playbook playbooks/configure-sync.yml
+
+# 3. Failover (DR event or drill)
+ansible-playbook playbooks/failover.yml -e confirm_failover=true
+----
+
+== Typical Run Order
+
+[source]
+----
+setup.yml           ← run once, or when adding a new cluster
+     │
+configure-sync.yml  ← initial setup; re-run whenever dr_vms changes
+     │
+     │   normal operations: VolSync syncs on cron schedule
+     │
+failover.yml -e confirm_failover=true   ← DR event or drill
+----
+
+== How It Works
+
+[source]
+----
+Source cluster                          Destination cluster
+──────────────────────────────────      ────────────────────────────────────
+VM  →  DV  →  PVC                       PVC  (pre-created to match source)
+               │                               │
+        ReplicationSource  ──rsyncTLS──▶  ReplicationDestination
+        (cron schedule)                   (LoadBalancer endpoint)
+
+VM spec (sanitized)  ──stored as──▶  VirtualMachine (runStrategy: Halted)
+----
+
+. *Setup* – VolSync (and optionally MetalLB) is installed on both clusters via OLM.
+. *Configure sync* – A shared TLS PSK is generated and pushed as a Secret to every DR namespace on both clusters.
+  PVCs are discovered by walking VM → DataVolume → PVC.
+  A `ReplicationDestination` (RD) is created on the dest for each PVC; a `ReplicationSource` (RS) is created on the source pointing at the RD's LoadBalancer address.
+  The sanitized VM spec is stored on the dest cluster as a halted `VirtualMachine` object.
+. *Failover* – All RDs on the dest are paused to freeze the replicated data, then the stored VM definitions are applied and (optionally) started.
+
+== Prerequisites
+
+=== Tooling
+
+[source,bash]
+----
+dnf install ansible-core git python3-pip
+pip3 install kubernetes
+ansible-galaxy collection install -r requirements.yml
+----
+
+`requirements.yml` installs: `kubernetes.core`, `ansible.posix`, `ansible.utils`, `community.general`.
+
+=== Kubeconfig
+
+Your kubeconfig must have two named contexts — one for the source cluster and one for the destination — matching
+`k8s_src_context` and `k8s_dest_context` in inventory.
+The user bound to each context must have the permissions described below.
+
+=== RBAC Requirements
+
+The playbooks talk to both clusters through the Kubernetes API.
+Required permissions differ by playbook.
+
+[%collapsible]
+.`setup.yml` — requires `cluster-admin` on *both* clusters
+====
+Creates cluster-scoped resources that cannot be created by a namespace-scoped role:
+
+[cols="2,3,3",options="header"]
+|===
+| Resource | API Group | Why
+
+| `Namespace`
+| `core`
+| Creates `metallb-system`
+
+| `Subscription`
+| `operators.coreos.com`
+| Installs operators via OLM
+
+| `ClusterServiceVersion`
+| `operators.coreos.com`
+| Polled to confirm operator readiness
+
+| `MetalLB`
+| `metallb.io`
+| Activates the MetalLB operator
+
+| `IPAddressPool`
+| `metallb.io`
+| Defines the LB IP range
+
+| `L2Advertisement`
+| `metallb.io`
+| Advertises IPs on L2
+|===
+====
+
+[%collapsible]
+.`configure-sync.yml` — requires cluster-admin or a targeted ClusterRole on *both* clusters
+====
+Reads and writes across all DR namespaces, plus cluster-scoped reads on KubeVirt and VolSync CRDs:
+
+[cols="2,3,2,1",options="header"]
+|===
+| Resource | API Group | Verbs | Cluster
+
+| `VirtualMachine`
+| `kubevirt.io`
+| `get`
+| source
+
+| `DataVolume`
+| `cdi.kubevirt.io`
+| `get`
+| source
+
+| `PersistentVolumeClaim`
+| `core`
+| `get`, `create`
+| both
+
+| `Secret`
+| `core`
+| `get`, `create`, `update`
+| both
+
+| `ReplicationSource`
+| `volsync.backube`
+| `get`, `create`, `update`
+| source
+
+| `ReplicationDestination`
+| `volsync.backube`
+| `get`, `create`, `update`
+| dest
+|===
+====
+
+[%collapsible]
+.`failover.yml` — requires cluster-admin or a ClusterRole on the *destination* cluster
+====
+The RD discovery step queries `ReplicationDestination` across *all namespaces* (no namespace filter),
+which requires a cluster-level `list`/`get` on that resource:
+
+[cols="2,3,2,1",options="header"]
+|===
+| Resource | API Group | Verbs | Cluster
+
+| `ReplicationDestination`
+| `volsync.backube`
+| `get`, `list`, `update`
+| dest
+
+| `VirtualMachine`
+| `kubevirt.io`
+| `get`, `create`, `update`
+| dest
+|===
+====
+
+[%collapsible]
+.`tls-psk.yml` — namespace-scoped is sufficient
+====
+Only creates/updates `Secret` objects in the DR namespaces on both clusters.
+A role with `get`/`create`/`update` on `secrets` in each DR namespace is enough.
+====
+
+NOTE: For lab and initial deployment, bind `cluster-admin` to the user or service account running the playbooks on both clusters.
+For production, create a dedicated `ClusterRole` covering the resources above and bind it to a dedicated service account — `cluster-admin` grants far more than these playbooks need.
+
+== Inventory
+
+Edit `inventories/lab/inventory.yml` to match your environment.
+
+=== Cluster Connectivity
+
+[cols="2,4",options="header"]
+|===
+| Variable | Description
+
+| `k8s_src_context`
+| kubeconfig context for the source cluster
+
+| `k8s_dest_context`
+| kubeconfig context for the destination cluster
+
+| `k8s_auth_verify_ssl`
+| Set `false` to skip TLS verification (lab use only)
+|===
+
+=== VM Protection List
+
+[cols="2,4",options="header"]
+|===
+| Variable | Description
+
+| `dr_vms`
+| List of `{name, namespace}` objects identifying VMs to protect
+|===
+
+[source,yaml]
+----
+dr_vms:
+  - name: db-server
+    namespace: production
+  - name: web-server
+    namespace: production
+----
+
+=== Replication Settings
+
+[cols="2,4",options="header"]
+|===
+| Variable | Description
+
+| `volsync_every_minutes`
+| Replication interval — cron expression becomes `*/N * * * *`
+
+| `volsync_copy_method`
+| `Snapshot` (default) or `Direct`
+
+| `src_storage_class`
+| StorageClass for RS snapshots on source
+
+| `src_snapshot_class`
+| VolumeSnapshotClass on source
+
+| `dest_storage_class`
+| StorageClass for destination PVCs
+
+| `dest_snapshot_class`
+| VolumeSnapshotClass on destination
+
+| `dest_access_modes`
+| Access modes for destination PVCs
+
+| `start_on_restore`
+| `true` to start VMs immediately after failover restore
+|===
+
+=== TLS / PSK
+
+[cols="2,4",options="header"]
+|===
+| Variable | Description
+
+| `volsync_tls_secret_name`
+| Name of the PSK Secret — must be identical on both clusters
+
+| `volsync_tls_key_id`
+| Numeric ID prefix in the PSK file (the part before the colon)
+
+| `volsync_tls_key_file`
+| Path to the PSK file — *store outside the repository*
+|===
+
+=== MetalLB (optional — destination only)
+
+[cols="2,4",options="header"]
+|===
+| Variable | Description
+
+| `enable_metallb`
+| `true` to install and configure MetalLB on the dest cluster
+
+| `metallb_ip_pool_cidr`
+| CIDR for the `IPAddressPool` (e.g. `192.168.126.230/29`)
+
+| `metallb_pool_name`
+| Name applied to the `IPAddressPool` and `L2Advertisement` objects
+
+| `metallb_l2_ns`
+| Namespace where MetalLB CRs are created (typically `metallb-system`)
+|===
+
+== Playbooks
+
+=== `setup.yml` — Install Operators
+
+Installs the **VolSync** operator on both clusters via OLM.
+Optionally installs and fully configures **MetalLB** on the destination cluster —
+required when the DR site is bare-metal with no cloud load balancer.
+
+[source,bash]
+----
+ansible-playbook playbooks/setup.yml
+----
+
+Steps performed:
+
+. Subscribe VolSync via OLM on both clusters and wait for the CSV to reach `Succeeded`.
+. If `enable_metallb: true`: create the `metallb-system` namespace, subscribe MetalLB, wait for its CSV, create the `MetalLB` instance, and apply the `IPAddressPool` and `L2Advertisement`.
+
+=== `configure-sync.yml` — Set Up Replication
+
+Run after `setup.yml`. Idempotent — safe to re-run whenever `dr_vms` changes.
+
+[source,bash]
+----
+ansible-playbook playbooks/configure-sync.yml
+----
+
+Steps performed in order:
+
+. Generate a PSK key file (if absent) and push it as a `Secret` to every DR namespace on both clusters.
+. Discover PVCs for all `dr_vms` on the source by walking VM → DataVolume → PVC.
+  VMs with no `dataVolumeTemplates` (standalone PVCs) are skipped with a warning.
+. Pre-create matching PVCs on the destination and apply `ReplicationDestination` CRs;
+  wait up to 6 minutes for each RD's LoadBalancer address to be assigned.
+. Create `ReplicationSource` CRs on the source pointing at each RD address.
+. Patch any RS whose cron schedule differs from `volsync_every_minutes`.
+. Export each VM's spec from source (stripped of `resourceVersion`, `uid`, `creationTimestamp`;
+  `runStrategy` forced to `Halted`) and apply it on the destination ready for instant restore.
+
+=== `failover.yml` — Failover to Destination
+
+IMPORTANT: Requires explicit confirmation. The play aborts unless you pass `-e confirm_failover=true`.
+
+[source,bash]
+----
+ansible-playbook playbooks/failover.yml -e confirm_failover=true
+----
+
+Steps performed:
+
+. Discover all managed `ReplicationDestination` CRs on the dest cluster.
+. Patch every RD to `paused: true` — freezes data at the last completed sync.
+. Apply stored VM definitions on the dest cluster.
+  VMs are started immediately only if `start_on_restore: true` is set in inventory.
+
+=== `tls-psk.yml` — Rotate / Re-push PSK
+
+Re-generates (if absent) and re-pushes the PSK Secret to both clusters without touching
+any VolSync or VM objects. Useful after adding a new namespace or rotating the key.
+
+[source,bash]
+----
+ansible-playbook playbooks/tls-psk.yml
+----
+
+== Role Reference
+
+[cols="1,4",options="header"]
+|===
+| Role | Responsibility
+
+| `prereqs`
+| OLM Subscriptions for VolSync and MetalLB; waits for each CSV to reach `Succeeded`;
+  creates MetalLB instance, `IPAddressPool`, and `L2Advertisement` when `enable_metallb: true`
+
+| `tls_psk`
+| Generates PSK file; creates `volsync-tls-psk` Secret in every DR namespace on both clusters
+
+| `discover`
+| Source mode: VM → DV → PVC walk.
+  Dest mode: collects existing `ReplicationDestination` CRs cluster-wide
+
+| `rd_dest`
+| Creates destination PVCs + `ReplicationDestination` CRs; waits up to 6 minutes for LB address
+
+| `rs_source`
+| Creates `ReplicationSource` CRs using RD addresses resolved by `rd_dest`
+
+| `schedule`
+| Idempotent schedule patch — ensures all RS objects match `volsync_every_minutes`
+
+| `vm_def`
+| Exports sanitized VM specs from source; stores as halted `VirtualMachine` objects on destination
+
+| `restore`
+| Applies stored VM definitions on dest; starts VMs if `start_on_restore: true`
+|===
+
+== Security Notes
+
+* The PSK file (`volsync_tls_key_file`) defaults to `~/.ocp-virt-async-dr/keys/psk.txt`.
+  Keep this file *outside the repository* — never commit it.
+* `k8s_auth_verify_ssl: false` is acceptable for lab clusters but must be `true` in production
+  with proper CA certificates configured.
+* The failover playbook defaults `confirm_failover: false` — a failover will abort unless
+  you explicitly pass `-e confirm_failover=true`.
