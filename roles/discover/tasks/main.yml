@@ -22,9 +22,10 @@
       vars:
         good_results: >-
           {{ vminfo.results | default([])
-             | selectattr('skipped','!=',True)
-             | selectattr('failed','!=',True)
-             | selectattr('resources','defined')
+             | rejectattr('skipped', 'equalto', True)
+             | rejectattr('failed', 'equalto', True)
+             | selectattr('resources', 'defined')
+             | selectattr('resources', 'ne', [])
              | list }}
       set_fact:
         dvinfo_pervm: >-
@@ -33,13 +34,10 @@
                  'dvs': item.1.spec.dataVolumeTemplates } ] }}
       loop: "{{ good_results | subelements('resources') }}"
       when:
-        - vminfo is defined
-        - (vminfo.results | default([])) | length > 0
-        - good_results | length > 0
         - item.1.spec.dataVolumeTemplates is defined
         - (item.1.spec.dataVolumeTemplates | length) > 0
       loop_control:
-        label: "{{ item.0.item.namespace }}"
+        label: "{{ item.0.item.namespace }}/{{ item.1.metadata.name }}"
 
     - name: Get DVs for VMs
       kubernetes.core.k8s_info:
