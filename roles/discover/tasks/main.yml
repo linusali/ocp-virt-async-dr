@@ -18,8 +18,8 @@
         label: "{{ item.namespace }}/{{ item.name }}"
       register: vminfo
 
-    - name: Build dvinfo_pervm only from successful results
-      vars:
+    - name: Filter successful VM results into good_results
+      set_fact:
         good_results: >-
           {{ vminfo.results | default([])
              | rejectattr('skipped', 'equalto', True)
@@ -27,6 +27,8 @@
              | selectattr('resources', 'defined')
              | selectattr('resources', 'ne', [])
              | list }}
+
+    - name: Build dvinfo_pervm from good_results
       set_fact:
         dvinfo_pervm: >-
           {{ (dvinfo_pervm | default([])) +
