@@ -1,3 +1,5 @@
+> ⚠️ **Disclaimer**: This README is Work In Progress. Please verify all commands, variable names, and steps before using it in **any** environment.
+
 # OpenShift Virtualization Async DR (VolSync + Ansible)
 
 Role-based Ansible playbooks for asynchronous Disaster Recovery of KubeVirt VMs using VolSync's **rsyncTLS** transport. Disks are replicated on a schedule from a source cluster to a destination cluster; VM specs are stored at the DR site so VMs can be restored exactly (same CPU, memory, NICs, MACs) during failover.
