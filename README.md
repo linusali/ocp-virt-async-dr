@@ -55,8 +55,9 @@ ansible-galaxy collection install -r requirements.yml
 | `volsync_tls_key_file` | Path to the PSK file — **store outside the repo** |
 | `start_on_restore` | `true` to start VMs immediately after failover restore |
 | `enable_metallb` | `true` to install MetalLB on the dest cluster |
-| `metallb_ip_pool_cidr` | CIDR for the MetalLB IP address pool |
-| `metallb_pool_name` | Name of the MetalLB IPAddressPool |
+| `metallb_ip_pool_cidr` | CIDR for the MetalLB `IPAddressPool` (e.g. `192.168.1.230/29`) |
+| `metallb_pool_name` | Name of the `IPAddressPool` and `L2Advertisement` objects |
+| `metallb_l2_ns` | Namespace where MetalLB CRs are created (typically `metallb-system`) |
 
 ---
 
@@ -113,7 +114,7 @@ ansible-playbook playbooks/tls-psk.yml
 
 | Role | Responsibility |
 |---|---|
-| `prereqs` | OLM Subscriptions for VolSync and (optionally) MetalLB; creates `metallb-system` namespace when needed |
+| `prereqs` | OLM Subscriptions for VolSync and (optionally) MetalLB; waits for each CSV to reach `Succeeded`; creates MetalLB instance, `IPAddressPool`, and `L2Advertisement` when `enable_metallb: true` |
 | `tls_psk` | Generates PSK file, creates `volsync-tls-psk` Secret in every DR namespace on both clusters |
 | `discover` | Source mode: VM → DV → PVC walk; Dest mode: collects existing RD CRs |
 | `rd_dest` | Creates destination PVCs + `ReplicationDestination` CRs; waits for LB address |

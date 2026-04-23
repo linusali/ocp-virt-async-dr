@@ -17,6 +17,20 @@
         source: redhat-operators
         sourceNamespace: openshift-marketplace
 
+- name: Wait for VolSync CSV to succeed
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: openshift-operators
+    label_selectors:
+      - "operators.coreos.com/volsync-product.openshift-operators="
+  register: volsync_csv
+  until: >
+    volsync_csv.resources | length > 0 and
+    volsync_csv.resources[0].status.phase | default('') == 'Succeeded'
+  retries: 36
+  delay: 10
 
 - name: Install MetalLB (optional)
   when: install_metallb | default(false) | bool
@@ -49,3 +63,72 @@
             name: metallb-operator
             source: redhat-operators
             sourceNamespace: openshift-marketplace
+
+    - name: Wait for MetalLB CSV to succeed
+      kubernetes.core.k8s_info:
+        context: "{{ k8s_context }}"
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        namespace: metallb-system
+        label_selectors:
+          - "operators.coreos.com/metallb-operator.metallb-system="
+      register: metallb_csv
+      until: >
+        metallb_csv.resources | length > 0 and
+        metallb_csv.resources[0].status.phase | default('') == 'Succeeded'
+      retries: 36
+      delay: 10
+
+    - name: Create MetalLB instance
+      kubernetes.core.k8s:
+        context: "{{ k8s_context }}"
+        state: present
+        definition:
+          apiVersion: metallb.io/v1beta1
+          kind: MetalLB
+          metadata:
+            name: metallb
+            namespace: metallb-system
+
+    - name: Wait for MetalLB controller to be ready
+      kubernetes.core.k8s_info:
+        context: "{{ k8s_context }}"
+        api_version: apps/v1
+        kind: Deployment
+        name: controller
+        namespace: metallb-system
+      register: metallb_ctrl
+      until: >
+        metallb_ctrl.resources | length > 0 and
+        (metallb_ctrl.resources[0].status.readyReplicas | default(0)) ==
+        (metallb_ctrl.resources[0].spec.replicas | default(1))
+      retries: 24
+      delay: 10
+
+    - name: Create MetalLB IPAddressPool
+      kubernetes.core.k8s:
+        context: "{{ k8s_context }}"
+        state: present
+        definition:
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata:
+            name: "{{ metallb_pool_name }}"
+            namespace: "{{ metallb_l2_ns }}"
+          spec:
+            addresses:
+              - "{{ metallb_ip_pool_cidr }}"
+
+    - name: Create MetalLB L2Advertisement
+      kubernetes.core.k8s:
+        context: "{{ k8s_context }}"
+        state: present
+        definition:
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata:
+            name: "{{ metallb_pool_name }}-l2adv"
+            namespace: "{{ metallb_l2_ns }}"
+          spec:
+            ipAddressPools:
+              - "{{ metallb_pool_name }}"
