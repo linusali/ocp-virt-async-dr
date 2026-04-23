@@ -27,6 +27,8 @@ VM spec (sanitized)  ──stored as──▶  VirtualMachine (runStrategy: Halt
 
 ## Prerequisites
 
+### Tooling
+
 ```bash
 dnf install ansible-core git python3-pip
 pip3 install kubernetes
@@ -34,6 +36,57 @@ ansible-galaxy collection install -r requirements.yml
 ```
 
 `requirements.yml` installs: `kubernetes.core`, `ansible.posix`, `ansible.utils`, `community.general`.
+
+### Kubeconfig
+
+Your kubeconfig must have two named contexts — one for the source cluster and one for the destination — matching `k8s_src_context` and `k8s_dest_context` in inventory. The user bound to each context must have the permissions described below.
+
+### RBAC requirements
+
+The playbooks talk to both clusters through the Kubernetes API. The required permissions differ by playbook.
+
+#### `setup.yml` — requires `cluster-admin` on **both** clusters
+
+This playbook creates cluster-scoped resources that cannot be created by a namespace-scoped role:
+
+| Resource | API group | Why |
+|---|---|---|
+| `Namespace` | `core` | Creates `metallb-system` |
+| `Subscription` | `operators.coreos.com` | Installs operators via OLM |
+| `ClusterServiceVersion` | `operators.coreos.com` | Polled to confirm operator readiness |
+| `MetalLB` | `metallb.io` | Activates the MetalLB operator |
+| `IPAddressPool` | `metallb.io` | Defines the LB IP range |
+| `L2Advertisement` | `metallb.io` | Advertises IPs on L2 |
+
+#### `configure-sync.yml` — requires cluster-admin or a targeted ClusterRole on **both** clusters
+
+Reads and writes across all DR namespaces, plus cluster-scoped reads on KubeVirt and VolSync CRDs:
+
+| Resource | API group | Verbs | Cluster |
+|---|---|---|---|
+| `VirtualMachine` | `kubevirt.io` | `get` | source |
+| `DataVolume` | `cdi.kubevirt.io` | `get` | source |
+| `PersistentVolumeClaim` | `core` | `get`, `create` | both |
+| `Secret` | `core` | `get`, `create`, `update` | both |
+| `ReplicationSource` | `volsync.backube` | `get`, `create`, `update` | source |
+| `ReplicationDestination` | `volsync.backube` | `get`, `create`, `update` | dest |
+
+#### `failover.yml` — requires cluster-admin or a ClusterRole on the **destination** cluster
+
+The RD discovery step queries `ReplicationDestination` across **all namespaces** (no namespace filter), which requires a cluster-level `list`/`get` on that resource:
+
+| Resource | API group | Verbs | Cluster |
+|---|---|---|---|
+| `ReplicationDestination` | `volsync.backube` | `get`, `list`, `update` | dest |
+| `VirtualMachine` | `kubevirt.io` | `get`, `create`, `update` | dest |
+
+#### `tls-psk.yml` — namespace-scoped is sufficient
+
+Only creates/updates `Secret` objects in the DR namespaces on both clusters. A role with `get`/`create`/`update` on `secrets` in each DR namespace is enough.
+
+#### Practical recommendation
+
+For lab and initial deployment, bind `cluster-admin` to the service account or user running the playbooks on both clusters. For production, create a dedicated `ClusterRole` covering the resources in the tables above and bind it to a dedicated service account — `cluster-admin` grants far more than these playbooks need.
 
 ---
 
