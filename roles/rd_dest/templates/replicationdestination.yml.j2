@@ -11,6 +11,6 @@ spec:
     destinationPVC: {{ item.metadata.name }}
     storageClassName: {{ dest_storage_class }}
     keySecret: {{ volsync_tls_secret_name }}    
-    serviceType: LoadBalancer
+    serviceType: {{ rd_service_type | default('LoadBalancer') }}
     accessModes: {{ item.spec.accessModes | to_yaml | trim }}
     {% if volsync_copy_method == 'Snapshot' %}volumeSnapshotClassName: {{ dest_snapshot_class }}{% endif %}

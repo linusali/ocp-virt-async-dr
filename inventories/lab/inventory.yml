@@ -18,7 +18,12 @@ all:
     src_storage_class: "freenas-iscsi-csi"
     src_snapshot_class: "freenas-iscsi-csi"
 
-    # MetalLB (optional on DR)
+    # ReplicationDestination service type
+    # LoadBalancer: requires a cloud LB controller or MetalLB on bare-metal
+    # NodePort:     use when no LB is available; source connects to any node IP on the assigned port
+    rd_service_type: "LoadBalancer"
+
+    # MetalLB (optional — only needed when rd_service_type=LoadBalancer on bare-metal/on-prem)
     enable_metallb: false
     metallb_ip_pool_cidr: "192.168.126.230/29"
     metallb_pool_name: "dr-pool"

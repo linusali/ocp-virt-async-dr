@@ -259,6 +259,36 @@ dr_vms:
 | `true` to start VMs immediately after failover restore
 |===
 
+=== RD Service Type
+
+VolSync's `ReplicationDestination` exposes an rsync endpoint that the source cluster connects to.
+The service type controls how that endpoint is reachable across clusters.
+
+[cols="2,4",options="header"]
+|===
+| Variable | Description
+
+| `rd_service_type`
+| Service type for the RD rsync endpoint. Default: `LoadBalancer`.
+  Set to `NodePort` when no load balancer is available.
+|===
+
+[cols="1,2,3",options="header"]
+|===
+| Value | When to use | Requirement
+
+| `LoadBalancer` (default)
+| Cloud clusters (AWS, GCP, Azure) or bare-metal with MetalLB
+| A load balancer controller must be present on the destination cluster
+
+| `NodePort`
+| Bare-metal / on-prem without any load balancer
+| Source cluster must have network access to at least one destination node IP
+|===
+
+NOTE: On bare-metal without a cloud LB controller, `LoadBalancer` services stay in `<pending>` indefinitely.
+Either set `rd_service_type: NodePort` or set `enable_metallb: true` to let MetalLB assign IPs.
+
 === TLS / PSK
 
 [cols="2,4",options="header"]
@@ -275,14 +305,22 @@ dr_vms:
 | Path to the PSK file — *store outside the repository*
 |===
 
-=== MetalLB (optional — destination only)
+=== MetalLB (bare-metal destination only)
+
+MetalLB is only needed when *all* of the following are true:
+
+* The destination cluster runs on bare-metal or on-prem
+* No other load balancer solution is present (cloud LB, F5, HAProxy, etc.)
+* `rd_service_type` is set to `LoadBalancer`
+
+If any of those conditions is not met, leave `enable_metallb: false` and ignore these variables.
 
 [cols="2,4",options="header"]
 |===
 | Variable | Description
 
 | `enable_metallb`
-| `true` to install and configure MetalLB on the dest cluster
+| `true` to install and fully configure MetalLB on the dest cluster
 
 | `metallb_ip_pool_cidr`
 | CIDR for the `IPAddressPool` (e.g. `192.168.126.230/29`)
