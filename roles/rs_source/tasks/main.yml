@@ -3,6 +3,6 @@
     context: "{{ k8s_context }}"
     state: present
     definition: "{{ lookup('template', 'replicationsource.yml.j2') }}"
-  loop: "{{ rd_info.results }}"
+  loop: "{{ discovered_pvcs }}"
   loop_control:
-    label: "{{ item.item.0.metadata.namespace }}/rs-{{ item.item.0.metadata.name }}"
+    label: "{{ item.metadata.namespace }}/rs-{{ item.metadata.name }}"

@@ -8,7 +8,7 @@
       metadata:
         name: "{{ item.metadata.name }}"
         namespace: "{{ item.metadata.namespace }}"
-        labels: 
+        labels:
           "dr/managed": "true"
       spec:
         accessModes: "{{ item.spec.accessModes }}"
@@ -31,32 +31,86 @@
   loop_control:
     label: "{{ item.metadata.namespace }}/rd-{{ item.metadata.name }}"
 
-- name: Gather all ReplicationDestination objects (for polling)
-  kubernetes.core.k8s_info:
-    context: "{{ k8s_context }}"
-    api_version: volsync.backube/v1alpha1
-    kind: ReplicationDestination
-  register: rd_all
+# ── LoadBalancer path ────────────────────────────────────────────────────────
 
-- name: Wait for RD to have an address (rsync endpoint ready)
-  vars:
-    rd_name: "rd-{{ item.0.metadata.name }}"
-    rd_ns: "{{ item.0.metadata.namespace }}"
+- name: Wait for RD LoadBalancer address
+  when: rd_service_type | default('LoadBalancer') == 'LoadBalancer'
   kubernetes.core.k8s_info:
     context: "{{ k8s_context }}"
     api_version: volsync.backube/v1alpha1
     kind: ReplicationDestination
-    name: "{{ rd_name }}"
-    namespace: "{{ rd_ns }}"
-  register: rd_info
+    name: "rd-{{ item.metadata.name }}"
+    namespace: "{{ item.metadata.namespace }}"
+  register: rd_lb_info
   until: >
-    rd_info.resources is defined and
-    (rd_info.resources | length) > 0 and
-    (rd_info.resources[0].status is defined) and
-    (rd_info.resources[0].status.rsyncTLS is defined) and
-    (rd_info.resources[0].status.rsyncTLS.address | default('')) != ''
-  retries: 12
-  delay: 5
-  loop: "{{ discovered_pvcs | product([0]) | list }}"   
+    rd_lb_info.resources | length > 0 and
+    (rd_lb_info.resources[0].status | default({})).rsyncTLS is defined and
+    (rd_lb_info.resources[0].status.rsyncTLS.address | default('')) != ''
+  retries: 36
+  delay: 10
+  loop: "{{ discovered_pvcs }}"
   loop_control:
-    label: "{{ item.0.metadata.namespace }}/rd-{{ item.0.metadata.name }}"
+    label: "{{ item.metadata.namespace }}/rd-{{ item.metadata.name }}"
+
+- name: Build rd_address_map from LoadBalancer addresses
+  when: rd_service_type | default('LoadBalancer') == 'LoadBalancer'
+  set_fact:
+    rd_address_map: >-
+      {{ (rd_address_map | default({})) | combine({
+           item.item.metadata.name: item.resources[0].status.rsyncTLS.address
+         }) }}
+  loop: "{{ rd_lb_info.results }}"
+  loop_control:
+    label: "{{ item.item.metadata.namespace }}/rd-{{ item.item.metadata.name }}"
+
+# ── NodePort path ────────────────────────────────────────────────────────────
+
+- name: Get a Ready destination node (NodePort mode)
+  when: rd_service_type | default('LoadBalancer') == 'NodePort'
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: v1
+    kind: Node
+  register: dest_nodes_info
+
+- name: Set destination node IP (NodePort mode)
+  when: rd_service_type | default('LoadBalancer') == 'NodePort'
+  set_fact:
+    dest_node_ip: >-
+      {{ dest_nodes_info.resources
+         | map(attribute='status.addresses')
+         | flatten
+         | selectattr('type', 'equalto', 'InternalIP')
+         | map(attribute='address')
+         | first }}
+
+- name: Wait for RD NodePort service to be assigned
+  when: rd_service_type | default('LoadBalancer') == 'NodePort'
+  kubernetes.core.k8s_info:
+    context: "{{ k8s_context }}"
+    api_version: v1
+    kind: Service
+    namespace: "{{ item.metadata.namespace }}"
+    label_selectors:
+      - "volsync.backube/replicationdestination=rd-{{ item.metadata.name }}"
+  register: rd_svc_info
+  until: >
+    rd_svc_info.resources | length > 0 and
+    (rd_svc_info.resources[0].spec.ports | default([]) | length) > 0 and
+    (rd_svc_info.resources[0].spec.ports[0].nodePort | default(0)) > 0
+  retries: 24
+  delay: 10
+  loop: "{{ discovered_pvcs }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/rd-{{ item.metadata.name }}"
+
+- name: Build rd_address_map from NodePort addresses
+  when: rd_service_type | default('LoadBalancer') == 'NodePort'
+  set_fact:
+    rd_address_map: >-
+      {{ (rd_address_map | default({})) | combine({
+           item.item.metadata.name: dest_node_ip ~ ':' ~ (item.resources[0].spec.ports[0].nodePort | string)
+         }) }}
+  loop: "{{ rd_svc_info.results }}"
+  loop_control:
+    label: "{{ item.item.metadata.namespace }}/rd-{{ item.item.metadata.name }}"
