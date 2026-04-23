@@ -14,11 +14,12 @@
       register: vm_dst_info
 
     - name: Start the VMs
+      when: start_on_restore | default(false) | bool
       kubernetes.core.k8s:
         context: "{{ k8s_context }}"
         state: patched
         definition:
-          api_version: kubevirt.io/v1
+          apiVersion: kubevirt.io/v1
           kind: VirtualMachine
           metadata:
             name: "{{ item.item.name }}"

@@ -20,6 +20,6 @@
         context: "{{ ctx_dst }}"
         state: present
         definition: "{{ lookup('template', 'vm-restore.yml.j2') }}"
-      loop: "{{ vm_src_info.results }}"
+      loop: "{{ vm_src_info.results | selectattr('resources', 'defined') | selectattr('resources', 'ne', []) | list }}"
       loop_control:
         label: "{{ item.item.namespace }}/{{ item.item.name }}"

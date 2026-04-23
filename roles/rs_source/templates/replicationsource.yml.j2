@@ -11,7 +11,7 @@ spec:
     schedule: "{{ rs_schedule }}"
   rsyncTLS:
     volumeSnapshotClassName: {{ src_snapshot_class }}
-    storageClassName: {{ src_snapshot_class }}
+    storageClassName: {{ src_storage_class }}
     copyMethod: {{ copy_method }}
     keySecret: {{ volsync_tls_secret_name }}
     address: {{ item.resources.0.status.rsyncTLS.address }}

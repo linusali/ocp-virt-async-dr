@@ -36,6 +36,8 @@
         - vminfo is defined
         - (vminfo.results | default([])) | length > 0
         - good_results | length > 0
+        - item.1.spec.dataVolumeTemplates is defined
+        - (item.1.spec.dataVolumeTemplates | length) > 0
       loop_control:
         label: "{{ item.0.item.namespace }}"
 
@@ -46,7 +48,7 @@
         kind: DataVolume
         namespace: "{{ item.0.ns }}"
         name: "{{ item.1.metadata.name }}"
-      loop: "{{ dvinfo_pervm | flatten | subelements('dvs') }}"
+      loop: "{{ dvinfo_pervm | default([]) | flatten | subelements('dvs') }}"
       loop_control:
         label: "{{ item.0.ns }}/{{ item.1.metadata.name }}"
       register: dvinfo
@@ -58,7 +60,7 @@
         kind: PersistentVolumeClaim
         namespace: "{{ item.resources[0].metadata.namespace }}"
         name: "{{ item.resources[0].status.claimName }}"
-      loop: "{{ dvinfo.results }}"
+      loop: "{{ dvinfo.results | default([]) | selectattr('resources', 'defined') | selectattr('resources', 'ne', []) | list }}"
       loop_control:
         label: "{{ item.resources[0].metadata.namespace }}/{{ item.resources[0].status.claimName }}"
       register: pvcinfo

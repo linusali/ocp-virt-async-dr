@@ -6,7 +6,7 @@
     kubernetes.core.k8s_info: { validate_certs: "{{ k8s_auth_verify_ssl }}" }
 
   vars:
-    confirm_failover: true
+    confirm_failover: false
 
   tasks:
     - name: Abort if not confirmed

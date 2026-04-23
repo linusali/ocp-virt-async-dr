@@ -12,5 +12,5 @@ spec:
     storageClassName: {{ dest_storage_class }}
     keySecret: {{ volsync_tls_secret_name }}    
     serviceType: LoadBalancer
-    accessModes: {{ item.spec.accessModes }}
+    accessModes: {{ item.spec.accessModes | to_yaml | trim }}
     {% if volsync_copy_method == 'Snapshot' %}volumeSnapshotClassName: {{ dest_snapshot_class }}{% endif %}

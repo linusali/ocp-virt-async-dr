@@ -20,20 +20,32 @@
 
 - name: Install MetalLB (optional)
   when: install_metallb | default(false) | bool
-  kubernetes.core.k8s:
-    context: "{{ k8s_context }}"
-    state: present
-    definition:
-      apiVersion: operators.coreos.com/v1alpha1
-      kind: Subscription
-      metadata:
-        labels:
-          operators.coreos.com/metallb-operator.metallb-system: ''
-        name: metallb-operator
-        namespace: metallb-system
-      spec:
-        channel: stable
-        installPlanApproval: Automatic
-        name: metallb-operator
-        source: redhat-operators
-        sourceNamespace: openshift-marketplace
+  block:
+    - name: Ensure metallb-system namespace exists
+      kubernetes.core.k8s:
+        context: "{{ k8s_context }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: metallb-system
+
+    - name: Subscribe MetalLB operator
+      kubernetes.core.k8s:
+        context: "{{ k8s_context }}"
+        state: present
+        definition:
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            labels:
+              operators.coreos.com/metallb-operator.metallb-system: ''
+            name: metallb-operator
+            namespace: metallb-system
+          spec:
+            channel: stable
+            installPlanApproval: Automatic
+            name: metallb-operator
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
